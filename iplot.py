@@ -10,6 +10,8 @@ time is the number of observation, unless a label is named "timestamp" in which 
 optional additional python arguments all come after the --args path/to/filename:
  --sfile path/to/anotherfile.npy
   # You may load additional files which are appended to axis 1 of the first data. Give a --sfile option for each other file.
+ --redux path/to/nx2-shaped.file
+  # with reduced dimensionality, 0 and 1 axis are displayed permanently in addtional scatter
  --sep ","
   # Change the seperator for the loading of textfiles (default ";")
  --sep2 ","
