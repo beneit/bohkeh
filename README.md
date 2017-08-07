@@ -1,14 +1,16 @@
-# Bokeh visualization tools,
-# see https://github.com/bokeh/bokeh
-
-# or install with conda 
+# Bokeh visualization tools
+see https://github.com/bokeh/bokeh
+or install with conda 
+```
 conda install bokeh
-
-# or pip
+```
+or pip
+```
 pip install bokeh
+```
 
-### Requirements:
-> bokeh
-> numpy
+Requirements:
+-bokeh
+-numpy
 
-# See sourcecode for information on how to run.
+See the sourcecode for information on how to run.
