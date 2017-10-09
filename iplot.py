@@ -11,7 +11,9 @@ optional additional python arguments all come after the --args path/to/filename:
  --sfile path/to/anotherfile.npy
   # You may load additional files which are appended to axis 1 of the first data. Give a --sfile option for each other file.
  --redux path/to/nx2-shaped.file
-  # with reduced dimensionality, 0 and 1 axis are displayed permanently in addtional scatter
+  # with reduced dimensionality, 0 and 1 axis are displayed permanently in addtional scatter. csv file has no label row
+ --model path/to/nxp-shaped-model.file path/to/nxp-shaped-std.file
+  # plots the model along with input data in a band with width of std file
  --sep ","
   # Change the seperator for the loading of textfiles (default ";")
  --sep2 ","
@@ -64,6 +66,8 @@ if signalLabels[0] == "Timestamp" or signalLabels[0] == "timestamp":
 else:
 	t = np.arange(len(signal))
 
+signalLabels0 = signalLabels
+	
 if "--sfile" in sys.argv:
 	i = 0
 	k = -1
@@ -72,6 +76,7 @@ if "--sfile" in sys.argv:
 			i += 1
 			k += 1
 			file = sys.argv[i]
+			name = ".".join(file.split(os.sep)[-1].split(".")[:-1])
 			print("Opening additional file: %s"%file)
 			if file.split(".")[-1] == "npy":
 				signal2 = np.load(file)
@@ -87,10 +92,7 @@ if "--sfile" in sys.argv:
 				n2, p2 = len(signal2), 1
 				signal2 = np.reshape(signal2, [-1,1])
 			if file.split(".")[-1] == "npy":
-				if p2 == p:
-					signalLabels2 = ["%s_2"%sl for sl in signalLabels]
-				else:
-					signalLabels2 = ["Extra_%d_%d"%(k, j) for j in range(p2)]
+				signalLabels2 = ["%s_%d"%(name, j) for j in range(p2)]
 				
 			signal = np.append(signal, signal2, axis=1)
 			signalLabels = signalLabels + signalLabels2
@@ -111,9 +113,29 @@ if "--redux" in sys.argv:
 	
 	signal = np.append(redux, signal, axis=1)
 	signalLabels = signalLabels2 + signalLabels
-	p = p + pr
+	p += pr
 else:
 	predux = False
+	
+if "--model" in sys.argv:
+	
+	file_pred = sys.argv[sys.argv.index("--model") + 1]
+	file_std = sys.argv[sys.argv.index("--model") + 2]
+	print("Opening file: %s as model expectation."%file_pred)
+	pred = np.load(file_pred) if file_pred.split(".")[-1] == "npy" else np.loadtxt(file_pred, skiprows=0, delimiter=csv_seperator2)
+
+	print("Opening file: %s as model deviation."%file_std)
+	std = np.load(file_std) if file_std.split(".")[-1] == "npy" else np.loadtxt(file_std, skiprows=0, delimiter=csv_seperator2)
+
+	pmodel = True
+	
+	# nm, pm = pred.shape
+	# signalLabels2 = ["%s_model"%sl for sl in signalLabels0]
+	
+	# signal = np.append(signal, pred, axis=1)
+	# signalLabels = signalLabels + signalLabels2
+else:
+	pmodel = False
 	
 signalIndices = dict(zip(signalLabels, np.arange(len(signalLabels))))
 
@@ -134,6 +156,8 @@ if predux:
 else:
 	source = ColumnDataSource(data=dict(date=[], t1=[], t2=[]))
 	source_static = ColumnDataSource(data=dict(date=[], t1=[], t2=[]))
+if pmodel:
+	source_band = ColumnDataSource(data=dict(band_x1=[], band_y1=[], band_x2=[], band_y2=[]))
 
 tools = 'pan,wheel_zoom,box_zoom,box_select,reset'
 
@@ -148,14 +172,18 @@ if predux:
 	reduced.circle('r1', 'r2', size=2, source=source,
             selection_color="orange", alpha=0.6, nonselection_alpha=0.1, selection_alpha=0.4)
 
-ts1 = figure(plot_width=1200, plot_height=250, tools=tools)
+ts1 = figure(plot_width=1200, plot_height=300, tools=tools)
 ts1.line('date', 't1', source=source_static)
-ts1.circle('date', 't1', size=1, source=source, color=None, selection_color="orange")
+ts1.circle('date', 't1', size=4, source=source, color=None, selection_color="orange")
+if pmodel:
+	ts1.patch('band_x1', 'band_y1', source=source_band, fill_alpha=0.2, color='#7570B3')
 
-ts2 = figure(plot_width=1200, plot_height=250, tools=tools)
+ts2 = figure(plot_width=1200, plot_height=300, tools=tools)
 ts2.x_range = ts1.x_range
 ts2.line('date', 't2', source=source_static)
-ts2.circle('date', 't2', size=1, source=source, color=None, selection_color="orange")
+ts2.circle('date', 't2', size=4, source=source, color=None, selection_color="orange")
+if pmodel:
+	ts2.patch('band_x2', 'band_y2', source=source_band, fill_alpha=0.2, color='#7570B3')
 
 # set up callbacks
 
@@ -172,7 +200,23 @@ def update(selected=None):
 
 	# data = get_data(t1, t2)
 	# source.data = source.from_df(data[['t1', 't2']])
+
 	data = dict(date=t, t1=signal[:,signalIndices[t1]], t2=signal[:,signalIndices[t2]])
+	if pmodel:
+		band = dict()
+		if t1 in signalLabels0:
+			band['band_x1'] = np.append(t, t[::-1])
+			band['band_y1'] = np.append(pred[:,signalIndices[t1] - predux*2] + std[:,signalIndices[t1] - predux*2], pred[::-1,signalIndices[t1] - predux*2] - std[::-1,signalIndices[t1] - predux*2])
+		else:
+			band['band_x1'] = np.zeros(2*n)
+			band['band_y1'] = np.zeros(2*n)
+		if t2 in signalLabels0:
+			band['band_x2'] = np.append(t, t[::-1])
+			band['band_y2'] = np.append(pred[:,signalIndices[t2] - predux*2] + std[:,signalIndices[t2] - predux*2], pred[::-1,signalIndices[t2] - predux*2] - std[::-1,signalIndices[t2] - predux*2])
+		else:
+			band['band_x2'] = np.zeros(2*n)
+			band['band_y2'] = np.zeros(2*n)			
+		source_band.data = band
 	
 	if predux:
 		data['r1'] = redux[:,0]
